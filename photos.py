@@ -3,8 +3,8 @@
 
 import sys
 import json
-from urllib.request import urlopen
-from urllib.parse import urlencode
+from urllib import urlopen
+from urllib import urlencode
 import os
 from shutil import rmtree
 from time import sleep, time
@@ -165,10 +165,21 @@ def get_photos_album(uid, token, file_name, f, album_id):
 def get_photos(uid, token, directory_name, f):
     download_methods = ['getAll']#, 'getUserPhotos' 'getNewTags'
     album_ids = [-6, -7, -15]
-    for index, d_method in enumerate(download_methods):
-        get_photos_method(uid, token, directory_name, f, d_method)
-    for index, album_num in enumerate(album_ids):
-        get_photos_album(uid, token, directory_name, f, album_num)
+
+    delim = '-'
+    uid_list = []
+    if delim not in uid:
+        uid_list.append(uid)
+    else:
+        uids_b = uid.split(delim)
+        for i in range(int(uids_b[0]), int(uids_b[1]) + 1):
+            uid_list.append(i)
+
+    for uid_line in uid_list:
+        for index, d_method in enumerate(download_methods):
+            get_photos_method(uid_line, token, directory_name, f, d_method)
+        for index, album_num in enumerate(album_ids):
+            get_photos_album(uid_line, token, directory_name, f, album_num)
 
 
 def check_token(token):
