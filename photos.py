@@ -118,8 +118,8 @@ def get_photos_method(uid, token, file_name, f, photo_method):
                         link = each['src']
                     else:
                         link = '???'
-                    f.write('%s\n' % link)
-                    print('collecting %s' % link)
+                    f.write('%s:%s\n' % (str(uid), link))
+                    print('collecting %s:%s' % (str(uid), link))
             f.close()
         except Exception:
             pass
@@ -153,8 +153,8 @@ def get_photos_album(uid, token, file_name, f, album_id):
                     link = each['src']
                 else:
                     link = '???'
-                f.write('%s\n' % link)
-                print('collecting %s' % link)
+                f.write('%s:%s\n' % (str(uid), link))
+                print('collecting %s:%s' % (str(uid), link))
             except Exception:
                 pass
         f.close()
@@ -195,8 +195,9 @@ def check_token(token):
 
 
 def download_photo(dir_name, url):
-    file_name = url[url.rfind('/')+1:]
-    resource = urlopen(url)
+    url_as = url[url.find(':') + 1:]
+    file_name = url[:url.find(':')] + '_' + url[url.rfind('/')+1:]
+    resource = urlopen(url_as)
     out = open('%s/%s' % (dir_name, file_name), 'wb')
     out.write(resource.read())
     out.close()
