@@ -111,6 +111,7 @@ def extract_pirture_url(response):
         return '???'
 
 def get_photos_method(uid, token, file_name, f, photo_method):
+    req_count = 200
     params = {}
     params['access_token'] = token
     params['owner_id'] = uid
@@ -120,15 +121,16 @@ def get_photos_method(uid, token, file_name, f, photo_method):
     if photos_count:
         try:
             f = open(path, 'a')
-            fave_iterations = int(photos_count/100)+1
-            params['count'] = 100
+            fave_iterations = int(photos_count / req_count) + 1
+            params['count'] = req_count
             for i in range(0,fave_iterations,1):
-                params['offset'] = 100*i
+                params['offset'] = req_count * i
                 photos_response = request('photos.%s' % photo_method, params, is_one=False)
                 for each in photos_response:
                     link = extract_pirture_url(each)
                     f.write('%s:%s\n' % (str(uid), link))
-                    print('collecting %s:%s' % (str(uid), link))
+                    # print('collecting %s:%s' % (str(uid), link))
+                print 'collecting %s of %s' % (str(i + 1), str(fave_iterations))
             f.close()
         except Exception:
             pass
@@ -137,33 +139,42 @@ def get_photos_method(uid, token, file_name, f, photo_method):
 
 
 def get_photos_album(uid, token, file_name, f, album_id):
+    req_count = 200
     params = {}
     params['access_token'] = token
     params['owner_id'] = uid
-    params['count'] = 1000
+    params['count'] = 0
     params['album_id'] = str(album_id)
+    photos_count = request('photos.get', params, is_one=True, return_data=False)
     path = file_name
-    try:
-        f = open(path, 'a')
-        photos_response = request('photos.get', params, is_one=False)
-        for each in photos_response:
-            if each != 'error':
-                try:
-                    link = extract_pirture_url(each)
-                    f.write('%s:%s\n' % (str(uid), link))
-                    print('collecting %s:%s' % (str(uid), link))
-                except Exception:
-                    pass
-        f.close()
-    except Exception:
+    if photos_count:
+        try:
+            f = open(path, 'a')
+            fave_iterations = int(photos_count / req_count) + 1
+            params['count'] = req_count
+            for i in range(0, fave_iterations, 1):
+                params['offset'] = req_count * i
+                photos_response = request('photos.get', params, is_one=False)
+                for each in photos_response:
+                    if each != 'error':
+                        try:
+                            link = extract_pirture_url(each)
+                            f.write('%s:%s\n' % (str(uid), link))
+                            # print('collecting %s:%s' % (str(uid), link))
+                        except Exception:
+                            pass
+                print 'collecting %s of %s' % (str(i + 1), str(fave_iterations))
+            f.close()
+        except Exception:
+            pass
+    else:
         pass
-
 
 def get_photos(uid, token, directory_name, f):
     download_methods = ['getAll']#, 'getUserPhotos' 'getNewTags'
     album_ids = [-6, -7, -15]
 
-    delim = '-'
+    delim = ';' # TODO ??
     uid_list = []
     if delim not in uid:
         uid_list.append(uid)
