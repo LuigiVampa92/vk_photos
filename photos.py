@@ -42,15 +42,20 @@ def touch(path):
         os.utime(path, None)
 
 
-def create_file(file_path):
-    if not os.path.exists(file_path):
+def create_file(file_path, deleteIfExists):
+    if os.path.exists(file_path):
+        if deleteIfExists:
+            os.remove(file_path)
+            touch(file_path)
+    else:
         touch(file_path)
 
 
-def create_directory(private_dir_name):
+def create_directory(private_dir_name, deleteIfExists):
     if os.path.isdir(private_dir_name):
-        rmtree(private_dir_name)
-        os.mkdir(private_dir_name)
+        if deleteIfExists:
+            rmtree(private_dir_name)
+            os.mkdir(private_dir_name)
     else:
         os.mkdir(private_dir_name)
 
@@ -66,33 +71,51 @@ def emoji_wipe(plain):
     return bytearray.decode(array, 'utf-8', errors='ignore')
 
 
-def request(method, params, is_one):
+def request(method, params, is_one, return_data = True):
     try:
         sleep(request_interval)
-        request_str = 'https://api.vk.com/method/%s?%s' % (method, urlencode(params))
+        paramsWithVersion = params
+        paramsWithVersion['v'] = '5.122'
+        request_str = 'https://api.vk.com/method/%s?%s' % (method, urlencode(paramsWithVersion))
         r = urlopen(request_str).read()
         json_data = json.loads(emoji_wipe(r))
         if 'error' in json_data:
             return {'error': json_data['error']}
         if 'response' in json_data:
             json_data = json_data['response']
-            json_data = list(json_data)
-            if is_one == True:
-                return json_data.pop()
+            if return_data:
+                if 'items' in json_data:
+                    json_data = json_data['items']
+                json_data = list(json_data)
+                if is_one == True:
+                    return json_data.pop()
+                else:
+                    return json_data
             else:
-                return json_data
+                return json_data['count']
         if not 'error' in json_data and not 'response' in json_data:
             return {'error': 'unknown error'}
     except Exception:
         pass
 
+photo_type_sort_arr = ['w', 'z', 'y', 'x', 'r', 'q', 'p', 'o', 'm', 's']
+
+def extract_pirture_url(response):
+    try:
+        sizes = response['sizes']
+        sizes_sorted = sorted(sizes, key= lambda size : photo_type_sort_arr.index(str(size['type'])))
+        size_selected = sizes_sorted[0]
+        url = str(size_selected['url']).replace(" ", "")
+        return url
+    except:
+        return '???'
 
 def get_photos_method(uid, token, file_name, f, photo_method):
     params = {}
     params['access_token'] = token
     params['owner_id'] = uid
     params['count'] = 0
-    photos_count = request('photos.%s' % photo_method, params, is_one=True)
+    photos_count = request('photos.%s' % photo_method, params, is_one=True, return_data=False)
     path = file_name
     if photos_count:
         try:
@@ -102,22 +125,8 @@ def get_photos_method(uid, token, file_name, f, photo_method):
             for i in range(0,fave_iterations,1):
                 params['offset'] = 100*i
                 photos_response = request('photos.%s' % photo_method, params, is_one=False)
-                photos_response = photos_response[1:]
                 for each in photos_response:
-                    if 'src_xxbig' in each:
-                        link = each['src_xxbig']
-                    elif 'src_xbig' in each:
-                        link = each['src_xbig']
-                    elif 'src_xbig' in each:
-                        link = each['src_xbig']
-                    elif 'src_big' in each:
-                        link = each['src_big']
-                    elif 'src_small' in each:
-                        link = each['src_small']
-                    elif 'src' in each:
-                        link = each['src']
-                    else:
-                        link = '???'
+                    link = extract_pirture_url(each)
                     f.write('%s:%s\n' % (str(uid), link))
                     print('collecting %s:%s' % (str(uid), link))
             f.close()
@@ -138,25 +147,13 @@ def get_photos_album(uid, token, file_name, f, album_id):
         f = open(path, 'a')
         photos_response = request('photos.get', params, is_one=False)
         for each in photos_response:
-            try:
-                if 'src_xxbig' in each:
-                    link = each['src_xxbig']
-                elif 'src_xbig' in each:
-                    link = each['src_xbig']
-                elif 'src_xbig' in each:
-                    link = each['src_xbig']
-                elif 'src_big' in each:
-                    link = each['src_big']
-                elif 'src_small' in each:
-                    link = each['src_small']
-                elif 'src' in each:
-                    link = each['src']
-                else:
-                    link = '???'
-                f.write('%s:%s\n' % (str(uid), link))
-                print('collecting %s:%s' % (str(uid), link))
-            except Exception:
-                pass
+            if each != 'error':
+                try:
+                    link = extract_pirture_url(each)
+                    f.write('%s:%s\n' % (str(uid), link))
+                    print('collecting %s:%s' % (str(uid), link))
+                except Exception:
+                    pass
         f.close()
     except Exception:
         pass
@@ -188,19 +185,10 @@ def check_token(token):
         check = request('users.get', params, is_one=True)
     except Exception:
         return False
-    if ('uid' in check) and ('first_name' in check) and ('last_name' in check):
+    if ('id' in check) and ('first_name' in check) and ('last_name' in check):
         return True
     else:
         return False
-
-
-def download_photo(dir_name, url):
-    url_as = url[url.find(':') + 1:]
-    file_name = url[:url.find(':')] + '_' + url[url.rfind('/')+1:]
-    resource = urlopen(url_as)
-    out = open('%s/%s' % (dir_name, file_name), 'wb')
-    out.write(resource.read())
-    out.close()
 
 
 def drop():
@@ -283,10 +271,13 @@ if first_param == 'collect':
         f.close()
     except Exception:
         sys.exit('Cannot read token. No user authorized.')
+
+    verify = False
     try:
         verify = check_token(token)
     except Exception:
         pass
+
     if not verify:
         if 'access_token=' in token:
             pos = token.find('access_token=')
@@ -305,7 +296,7 @@ if first_param == 'collect':
         file_name = 'group_%s.txt' % str(uid)
     else:
         drop()
-    create_file(file_name)
+    create_file(file_name, True)
     get_photos(uid, token, file_name, f)
 
 if first_param == 'download':
@@ -324,18 +315,32 @@ if first_param == 'download':
     except Exception:
         sys.exit('Cannot open file. Make sure to type correct file name.')
 
-    directory_name = file_with_photos[:file_with_photos.rfind('.')]
-    create_directory(directory_name)
-    create_file('errors.txt')
+    current_dir = os.path.abspath(os.path.curdir)
+    directory_name = os.path.join(current_dir, file_with_photos[:file_with_photos.rfind('.')])
+    create_directory(directory_name, False)
+    create_file('errors.txt', False)
 
     links = photos_txt.split('\n')
     links = links[:-1]
     total = len(links)
 
     for number, link in enumerate(links):
-        print('downloading %s (%s of %s)' % (link, str(number+1), total))
+        # print('downloading %s (%s of %s)' % (link, str(number+1), total))
         try:
-            download_photo(directory_name, link)
+            # download_photo(directory_name, link)
+
+            url_as = link[link.find(':') + 1:]
+            file_name = link[:link.find(':')] + '_' + link[link.rfind('/') + 1:]
+            file_name_abs = os.path.join(directory_name, file_name)
+
+            if not os.path.isfile(file_name_abs):
+                resource = urlopen(url_as)
+                out = open(file_name_abs, 'wb')
+                out.write(resource.read())
+                out.close()
+
+                print('downloaded %s of %s' % (str(number + 1), total))
+
         except Exception:
             print('failed to download %s' % link)
             f = open('errors.txt', 'a')
