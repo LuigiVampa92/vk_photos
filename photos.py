@@ -3,12 +3,16 @@
 
 import sys
 import json
-from urllib import urlopen
-from urllib import urlencode
 import os
 from shutil import rmtree
 from time import sleep, time
 
+try:
+    from urllib import urlopen as urlopen
+    from urllib import urlencode as urlencode
+except ImportError:
+    from urllib.request import urlopen as urlopen
+    from urllib.parse import urlencode as urlencode
 
 def auth(login, pwd):
     params = {}
@@ -130,7 +134,7 @@ def get_photos_method(uid, token, file_name, f, photo_method):
                     link = extract_pirture_url(each)
                     f.write('%s:%s\n' % (str(uid), link))
                     # print('collecting %s:%s' % (str(uid), link))
-                print 'collecting %s of %s' % (str(i + 1), str(fave_iterations))
+                print('collecting %s of %s' % (str(i + 1), str(fave_iterations)))
             f.close()
         except Exception:
             pass
@@ -163,7 +167,7 @@ def get_photos_album(uid, token, file_name, f, album_id):
                             # print('collecting %s:%s' % (str(uid), link))
                         except Exception:
                             pass
-                print 'collecting %s of %s' % (str(i + 1), str(fave_iterations))
+                print('collecting %s of %s' % (str(i + 1), str(fave_iterations)))
             f.close()
         except Exception:
             pass
