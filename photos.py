@@ -7,6 +7,9 @@ import os
 from shutil import rmtree
 from time import sleep, time
 
+import urllib.request
+photo_index = 1
+
 try:
     from urllib import urlopen as urlopen
     from urllib import urlencode as urlencode
@@ -186,12 +189,14 @@ def get_photos(uid, token, directory_name, f):
         uids_b = uid.split(delim)
         for i in range(int(uids_b[0]), int(uids_b[1]) + 1):
             uid_list.append(i)
-
+    user_input = int(input("1: Загрузить только фото из альбомов\n2: Загрузить всё (со стены и альбомы)\n"))
     for uid_line in uid_list:
-        for index, d_method in enumerate(download_methods):
-            get_photos_method(uid_line, token, directory_name, f, d_method)
-        for index, album_num in enumerate(album_ids):
-            get_photos_album(uid_line, token, directory_name, f, album_num)
+        if user_input == 1:
+            for index, d_method in enumerate(download_methods):
+                get_photos_method(uid_line, token, directory_name, f, d_method)
+        if user_input == 2:
+            for index, album_num in enumerate(album_ids):
+                get_photos_album(uid_line, token, directory_name, f, album_num)
 
 
 def check_token(token):
@@ -349,13 +354,9 @@ if first_param == 'download':
             file_name_abs = os.path.join(directory_name, file_name)
 
             if not os.path.isfile(file_name_abs):
-                resource = urlopen(url_as)
-                out = open(file_name_abs, 'wb')
-                out.write(resource.read())
-                out.close()
-
+                urllib.request.urlretrieve(f'{url_as}', f'{directory_name}\{photo_index}.jpg')
+                photo_index = photo_index + 1
                 print('downloaded %s of %s' % (str(number + 1), total))
-
         except Exception:
             print('failed to download %s' % link)
             f = open('errors.txt', 'a')
