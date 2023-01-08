@@ -10,9 +10,11 @@ from time import sleep, time
 try:
     from urllib import urlopen as urlopen
     from urllib import urlencode as urlencode
+    from urllib import urlparse as urlparse
 except ImportError:
     from urllib.request import urlopen as urlopen
     from urllib.parse import urlencode as urlencode
+    from urllib.parse import urlparse as urlparse
 
 def auth(login, pwd):
     params = {}
@@ -114,11 +116,39 @@ def extract_pirture_url(response):
     except:
         return '???'
 
-def get_photos_method(uid, token, file_name, f, photo_method):
+def get_photos_method_with_owner_id(uid, token, file_name, f, photo_method):
     req_count = 200
     params = {}
     params['access_token'] = token
     params['owner_id'] = uid
+    params['count'] = 0
+    photos_count = request('photos.%s' % photo_method, params, is_one=True, return_data=False)
+    path = file_name
+    if photos_count:
+        try:
+            f = open(path, 'a')
+            fave_iterations = int(photos_count / req_count) + 1
+            params['count'] = req_count
+            for i in range(0,fave_iterations,1):
+                params['offset'] = req_count * i
+                photos_response = request('photos.%s' % photo_method, params, is_one=False)
+                for each in photos_response:
+                    link = extract_pirture_url(each)
+                    f.write('%s:%s\n' % (str(uid), link))
+                    # print('collecting %s:%s' % (str(uid), link))
+                print('collecting %s of %s' % (str(i + 1), str(fave_iterations)))
+            f.close()
+        except Exception:
+            pass
+    else:
+        pass
+
+
+def get_photos_method_with_user_id(uid, token, file_name, f, photo_method):
+    req_count = 200
+    params = {}
+    params['access_token'] = token
+    params['user_id'] = uid
     params['count'] = 0
     photos_count = request('photos.%s' % photo_method, params, is_one=True, return_data=False)
     path = file_name
@@ -175,7 +205,14 @@ def get_photos_album(uid, token, file_name, f, album_id):
         pass
 
 def get_photos(uid, token, directory_name, f):
-    download_methods = ['getAll']#, 'getUserPhotos' 'getNewTags'
+    download_methods_with_owner_id = ['getAll']#, 'getUserPhotos' 'getNewTags'
+
+    download_methods_with_user_id = ['getUserPhotos']
+
+    # -6  -  служебный id - фотографии со страницы
+    # -7  -  служебный id - фотографии на стене
+    # -15 -  служебный id - фотографии с пользователем - УБРАЛИ В НОВОЙ ВЕРСИИ АПИ, теперь это photos.getUserPhotos
+    # здесь оставлю на случай старых версий апи, если что дубликаты скипнутся во время загрузки
     album_ids = [-6, -7, -15]
 
     delim = ';' # TODO ??
@@ -188,10 +225,12 @@ def get_photos(uid, token, directory_name, f):
             uid_list.append(i)
 
     for uid_line in uid_list:
-        for index, d_method in enumerate(download_methods):
-            get_photos_method(uid_line, token, directory_name, f, d_method)
+        for index, d_method in enumerate(download_methods_with_owner_id):
+            get_photos_method_with_owner_id(uid_line, token, directory_name, f, d_method)
         for index, album_num in enumerate(album_ids):
             get_photos_album(uid_line, token, directory_name, f, album_num)
+        for index, d_method in enumerate(download_methods_with_user_id):
+            get_photos_method_with_user_id(uid_line, token, directory_name, f, d_method)
 
 
 def check_token(token):
@@ -261,7 +300,7 @@ if first_param == 'auth':
     check_argv(4)
     try:
         response = auth(second_param, third_param)
-    except Exception:
+    except Exception as e:
         sys.exit('Auth failed')
     if 'error' in response:
         sys.exit('Error: %s' % response['error'])
@@ -337,6 +376,7 @@ if first_param == 'download':
 
     links = photos_txt.split('\n')
     links = links[:-1]
+    links = list(set(links))
     total = len(links)
 
     for number, link in enumerate(links):
@@ -346,6 +386,8 @@ if first_param == 'download':
 
             url_as = link[link.find(':') + 1:]
             file_name = link[:link.find(':')] + '_' + link[link.rfind('/') + 1:]
+            if "?" in file_name:
+                file_name = file_name[:file_name.find('?')]
             file_name_abs = os.path.join(directory_name, file_name)
 
             if not os.path.isfile(file_name_abs):
